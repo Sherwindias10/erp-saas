@@ -3,12 +3,13 @@ import { Plus, Package, FileText, Users, DollarSign, TrendingUp, Search, Edit, T
 
 // Firebase configuration (you'll add your own keys later)
 const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD_8YiPfXkZggJQOZGjxiPwMHSzWSH-pOQ",
+  authDomain: "erp-saas-platform.firebaseapp.com",
+  projectId: "erp-saas-platform",
+  storageBucket: "erp-saas-platform.firebasestorage.app",
+  messagingSenderId: "232433018921",
+  appId: "1:232433018921:web:99de012385c65522af1438"
+  measurementId: "G-QSLX22N53H"
 };
 
 const SaaSERPPlatform = () => {

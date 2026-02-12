@@ -15,21 +15,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-} from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase.jsx';
-
-const baseCard = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 12,
-  background: '#fff',
-  padding: 16,
-};
+import './App.css';
 
 const SaaSERPPlatform = () => {
   const [authState, setAuthState] = useState({ email: '', password: '' });
@@ -82,6 +70,7 @@ const SaaSERPPlatform = () => {
 
         setUserRole('tenant');
         const tenantDoc = await getDoc(doc(db, 'tenants', user.uid));
+
         if (!tenantDoc.exists()) {
           setError('Tenant profile not found. Please contact support.');
           setCurrentTenant(null);
@@ -117,6 +106,7 @@ const SaaSERPPlatform = () => {
 
   const metrics = useMemo(() => {
     const revenue = tenantData.salesOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
     return [
       { icon: Users, label: 'Customers', value: tenantData.customers.length },
       { icon: Package, label: 'Products', value: tenantData.products.length },
@@ -128,6 +118,7 @@ const SaaSERPPlatform = () => {
   const handleLogin = async (event) => {
     event.preventDefault();
     setError('');
+
     try {
       await signInWithEmailAndPassword(auth, authState.email, authState.password);
       setAuthState({ email: '', password: '' });
@@ -139,6 +130,7 @@ const SaaSERPPlatform = () => {
   const handleSignup = async (event) => {
     event.preventDefault();
     setError('');
+
     try {
       const userCred = await createUserWithEmailAndPassword(auth, signupState.email, signupState.password);
       await setDoc(doc(db, 'tenants', userCred.user.uid), {
@@ -157,6 +149,7 @@ const SaaSERPPlatform = () => {
 
   const handleLogout = async () => {
     setError('');
+
     try {
       await signOut(auth);
       setView('dashboard');
@@ -167,6 +160,7 @@ const SaaSERPPlatform = () => {
 
   const insertTenantDoc = async (collectionName, payload) => {
     if (!currentUser) return;
+
     const id = `${collectionName}_${Date.now()}`;
     await setDoc(doc(db, 'tenants', currentUser.uid, collectionName, id), {
       ...payload,
@@ -176,6 +170,7 @@ const SaaSERPPlatform = () => {
 
   const addCustomer = async (event) => {
     event.preventDefault();
+
     await insertTenantDoc('customers', draftCustomer);
     setTenantData((prev) => ({ ...prev, customers: [...prev.customers, { id: `customers_${Date.now()}`, ...draftCustomer }] }));
     setDraftCustomer({ name: '', email: '', phone: '' });
@@ -183,11 +178,13 @@ const SaaSERPPlatform = () => {
 
   const addProduct = async (event) => {
     event.preventDefault();
+
     const payload = {
       ...draftProduct,
       stock: Number(draftProduct.stock || 0),
       price: Number(draftProduct.price || 0),
     };
+
     await insertTenantDoc('products', payload);
     setTenantData((prev) => ({ ...prev, products: [...prev.products, { id: `products_${Date.now()}`, ...payload }] }));
     setDraftProduct({ name: '', sku: '', stock: '', price: '' });
@@ -195,29 +192,33 @@ const SaaSERPPlatform = () => {
 
   const addSalesOrder = async (event) => {
     event.preventDefault();
+
     const payload = {
       customer: draftOrder.customer,
       total: Number(draftOrder.total || 0),
       date: draftOrder.date,
       status: 'Draft',
     };
+
     await insertTenantDoc('salesOrders', payload);
     setTenantData((prev) => ({ ...prev, salesOrders: [...prev.salesOrders, { id: `salesOrders_${Date.now()}`, ...payload }] }));
     setDraftOrder({ customer: '', total: '', date: '' });
   };
 
   if (loading) {
-    return <main style={{ padding: 24, fontFamily: 'sans-serif' }}>Loading SaaS ERP Platform…</main>;
+    return <main className="app-shell"><div className="loading-card">Loading SaaS ERP Platform…</div></main>;
   }
 
   if (!currentUser) {
     return (
-      <main style={{ maxWidth: 480, margin: '48px auto', fontFamily: 'sans-serif', padding: '0 12px' }}>
-        <div style={baseCard}>
-          <h1 style={{ marginTop: 0 }}>SaaS ERP Platform</h1>
-          <p>Sign in to access your tenant workspace.</p>
-          <form onSubmit={handleLogin} style={{ display: 'grid', gap: 10 }}>
+      <main className="auth-shell">
+        <section className="auth-card">
+          <h1>SaaS ERP Platform</h1>
+          <p className="muted">Sign in to access your tenant workspace.</p>
+
+          <form onSubmit={handleLogin} className="stack-form">
             <input
+              className="ui-input"
               placeholder="Email"
               type="email"
               value={authState.email}
@@ -225,189 +226,164 @@ const SaaSERPPlatform = () => {
               required
             />
             <input
+              className="ui-input"
               placeholder="Password"
               type="password"
               value={authState.password}
               onChange={(event) => setAuthState((prev) => ({ ...prev, password: event.target.value }))}
               required
             />
-            <button type="submit">Sign in</button>
+            <button className="ui-button" type="submit">Sign in</button>
           </form>
-          <button type="button" onClick={() => setShowSignup((prev) => !prev)} style={{ marginTop: 10 }}>
+
+          <button className="ui-button ghost" type="button" onClick={() => setShowSignup((prev) => !prev)}>
             {showSignup ? 'Hide sign up' : 'Start free trial'}
           </button>
+
           {showSignup && (
-            <form onSubmit={handleSignup} style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-              <input
-                placeholder="Company name"
-                value={signupState.companyName}
-                onChange={(event) => setSignupState((prev) => ({ ...prev, companyName: event.target.value }))}
-                required
-              />
-              <input
-                placeholder="Contact name"
-                value={signupState.contactName}
-                onChange={(event) => setSignupState((prev) => ({ ...prev, contactName: event.target.value }))}
-                required
-              />
-              <input
-                placeholder="Email"
-                type="email"
-                value={signupState.email}
-                onChange={(event) => setSignupState((prev) => ({ ...prev, email: event.target.value }))}
-                required
-              />
-              <input
-                placeholder="Password"
-                type="password"
-                value={signupState.password}
-                onChange={(event) => setSignupState((prev) => ({ ...prev, password: event.target.value }))}
-                required
-              />
-              <button type="submit">Create account</button>
+            <form onSubmit={handleSignup} className="stack-form signup-form">
+              <input className="ui-input" placeholder="Company name" value={signupState.companyName} onChange={(event) => setSignupState((prev) => ({ ...prev, companyName: event.target.value }))} required />
+              <input className="ui-input" placeholder="Contact name" value={signupState.contactName} onChange={(event) => setSignupState((prev) => ({ ...prev, contactName: event.target.value }))} required />
+              <input className="ui-input" placeholder="Email" type="email" value={signupState.email} onChange={(event) => setSignupState((prev) => ({ ...prev, email: event.target.value }))} required />
+              <input className="ui-input" placeholder="Password" type="password" value={signupState.password} onChange={(event) => setSignupState((prev) => ({ ...prev, password: event.target.value }))} required />
+              <button className="ui-button" type="submit">Create account</button>
             </form>
           )}
-          {error && <p style={{ color: 'crimson' }}>{error}</p>}
-        </div>
+
+          {error && <p className="error-text">{error}</p>}
+        </section>
       </main>
     );
   }
 
   if (userRole === 'superadmin') {
     return (
-      <main style={{ maxWidth: 900, margin: '30px auto', fontFamily: 'sans-serif', padding: '0 12px' }}>
-        <div style={{ ...baseCard, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <main className="app-shell">
+        <header className="top-card">
           <div>
-            <h1 style={{ margin: 0 }}>Super Admin</h1>
-            <p style={{ margin: '6px 0 0 0' }}>Manage all tenant organizations.</p>
+            <h1>Super Admin</h1>
+            <p className="muted">Manage all tenant organizations.</p>
           </div>
-          <button onClick={handleLogout} type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <LogOut size={16} /> Sign out
-          </button>
-        </div>
-        <section style={{ ...baseCard, marginTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Tenants ({tenants.length})</h2>
-          <ul>
-            {tenants.map((tenant) => (
-              <li key={tenant.id}>
-                {tenant.companyName || tenant.email || tenant.id} · {tenant.plan || 'n/a'}
-              </li>
-            ))}
-          </ul>
+          <button className="ui-button danger" onClick={handleLogout} type="button"><LogOut size={16} /> Sign out</button>
+        </header>
+
+        <section className="content-card">
+          <h2>Tenants ({tenants.length})</h2>
+          {tenants.length === 0 ? (
+            <p className="muted">No tenants available yet.</p>
+          ) : (
+            <ul className="entity-list">
+              {tenants.map((tenant) => (
+                <li key={tenant.id}>
+                  <strong>{tenant.companyName || tenant.email || tenant.id}</strong>
+                  <span>{tenant.plan || 'n/a'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '24px auto', fontFamily: 'sans-serif', padding: '0 12px' }}>
-      <header style={{ ...baseCard, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <main className="app-shell">
+      <header className="top-card">
         <div>
-          <h1 style={{ margin: 0 }}>SaaS ERP Platform</h1>
-          <p style={{ margin: '6px 0 0 0' }}>
-            <Building2 size={16} style={{ verticalAlign: 'text-bottom' }} /> {currentTenant?.companyName || currentUser.email}
-          </p>
+          <h1>SaaS ERP Platform</h1>
+          <p className="muted"><Building2 size={16} /> {currentTenant?.companyName || currentUser.email}</p>
         </div>
-        <button onClick={handleLogout} type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <LogOut size={16} /> Sign out
-        </button>
+        <button className="ui-button danger" onClick={handleLogout} type="button"><LogOut size={16} /> Sign out</button>
       </header>
 
-      <nav style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <nav className="tab-nav">
         {['dashboard', 'customers', 'products', 'orders'].map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => setView(item)}
-            style={{
-              textTransform: 'capitalize',
-              background: view === item ? '#111827' : '#f3f4f6',
-              color: view === item ? '#fff' : '#111827',
-              borderRadius: 8,
-              padding: '8px 12px',
-              border: 'none',
-            }}
-          >
+          <button key={item} type="button" onClick={() => setView(item)} className={`tab-btn ${view === item ? 'active' : ''}`}>
             {item}
           </button>
         ))}
       </nav>
 
       {view === 'dashboard' && (
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
+        <section className="metrics-grid">
           {metrics.map((metric) => {
             const Icon = metric.icon;
             return (
-              <article key={metric.label} style={baseCard}>
-                <p style={{ margin: 0, color: '#6b7280' }}>
-                  <Icon size={16} style={{ verticalAlign: 'text-bottom' }} /> {metric.label}
-                </p>
-                <h3 style={{ marginBottom: 0 }}>{metric.value}</h3>
+              <article key={metric.label} className="metric-card">
+                <p className="muted"><Icon size={16} /> {metric.label}</p>
+                <h3>{metric.value}</h3>
               </article>
             );
           })}
-          <article style={baseCard}>
-            <p style={{ margin: 0, color: '#6b7280' }}>
-              <TrendingUp size={16} style={{ verticalAlign: 'text-bottom' }} /> Business Health
-            </p>
-            <h3 style={{ marginBottom: 0 }}>Stable</h3>
+          <article className="metric-card">
+            <p className="muted"><TrendingUp size={16} /> Business Health</p>
+            <h3>Stable</h3>
           </article>
         </section>
       )}
 
       {view === 'customers' && (
-        <section style={{ ...baseCard, marginTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Customers</h2>
-          <form onSubmit={addCustomer} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <input placeholder="Name" value={draftCustomer.name} onChange={(e) => setDraftCustomer((p) => ({ ...p, name: e.target.value }))} required />
-            <input placeholder="Email" type="email" value={draftCustomer.email} onChange={(e) => setDraftCustomer((p) => ({ ...p, email: e.target.value }))} required />
-            <input placeholder="Phone" value={draftCustomer.phone} onChange={(e) => setDraftCustomer((p) => ({ ...p, phone: e.target.value }))} required />
-            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />Add</button>
+        <section className="content-card">
+          <h2>Customers</h2>
+          <form onSubmit={addCustomer} className="row-form">
+            <input className="ui-input" placeholder="Name" value={draftCustomer.name} onChange={(e) => setDraftCustomer((p) => ({ ...p, name: e.target.value }))} required />
+            <input className="ui-input" placeholder="Email" type="email" value={draftCustomer.email} onChange={(e) => setDraftCustomer((p) => ({ ...p, email: e.target.value }))} required />
+            <input className="ui-input" placeholder="Phone" value={draftCustomer.phone} onChange={(e) => setDraftCustomer((p) => ({ ...p, phone: e.target.value }))} required />
+            <button className="ui-button" type="submit"><Plus size={14} /> Add</button>
           </form>
-          <ul>
-            {tenantData.customers.map((customer) => (
-              <li key={customer.id}>{customer.name} · {customer.email}</li>
-            ))}
-          </ul>
+
+          {tenantData.customers.length === 0 ? <p className="muted">No customers yet.</p> : (
+            <ul className="entity-list">
+              {tenantData.customers.map((customer) => (
+                <li key={customer.id}><strong>{customer.name}</strong><span>{customer.email}</span></li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
       {view === 'products' && (
-        <section style={{ ...baseCard, marginTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Products</h2>
-          <form onSubmit={addProduct} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <input placeholder="Name" value={draftProduct.name} onChange={(e) => setDraftProduct((p) => ({ ...p, name: e.target.value }))} required />
-            <input placeholder="SKU" value={draftProduct.sku} onChange={(e) => setDraftProduct((p) => ({ ...p, sku: e.target.value }))} required />
-            <input placeholder="Stock" type="number" value={draftProduct.stock} onChange={(e) => setDraftProduct((p) => ({ ...p, stock: e.target.value }))} required />
-            <input placeholder="Price" type="number" step="0.01" value={draftProduct.price} onChange={(e) => setDraftProduct((p) => ({ ...p, price: e.target.value }))} required />
-            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />Add</button>
+        <section className="content-card">
+          <h2>Products</h2>
+          <form onSubmit={addProduct} className="row-form">
+            <input className="ui-input" placeholder="Name" value={draftProduct.name} onChange={(e) => setDraftProduct((p) => ({ ...p, name: e.target.value }))} required />
+            <input className="ui-input" placeholder="SKU" value={draftProduct.sku} onChange={(e) => setDraftProduct((p) => ({ ...p, sku: e.target.value }))} required />
+            <input className="ui-input" placeholder="Stock" type="number" value={draftProduct.stock} onChange={(e) => setDraftProduct((p) => ({ ...p, stock: e.target.value }))} required />
+            <input className="ui-input" placeholder="Price" type="number" step="0.01" value={draftProduct.price} onChange={(e) => setDraftProduct((p) => ({ ...p, price: e.target.value }))} required />
+            <button className="ui-button" type="submit"><Plus size={14} /> Add</button>
           </form>
-          <ul>
-            {tenantData.products.map((product) => (
-              <li key={product.id}>{product.name} · {product.sku} · ${Number(product.price || 0).toFixed(2)}</li>
-            ))}
-          </ul>
+
+          {tenantData.products.length === 0 ? <p className="muted">No products yet.</p> : (
+            <ul className="entity-list">
+              {tenantData.products.map((product) => (
+                <li key={product.id}><strong>{product.name}</strong><span>{product.sku} · ${Number(product.price || 0).toFixed(2)}</span></li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
       {view === 'orders' && (
-        <section style={{ ...baseCard, marginTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Sales Orders</h2>
-          <form onSubmit={addSalesOrder} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <input placeholder="Customer" value={draftOrder.customer} onChange={(e) => setDraftOrder((p) => ({ ...p, customer: e.target.value }))} required />
-            <input placeholder="Total" type="number" step="0.01" value={draftOrder.total} onChange={(e) => setDraftOrder((p) => ({ ...p, total: e.target.value }))} required />
-            <input type="date" value={draftOrder.date} onChange={(e) => setDraftOrder((p) => ({ ...p, date: e.target.value }))} required />
-            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />Create</button>
+        <section className="content-card">
+          <h2>Sales Orders</h2>
+          <form onSubmit={addSalesOrder} className="row-form">
+            <input className="ui-input" placeholder="Customer" value={draftOrder.customer} onChange={(e) => setDraftOrder((p) => ({ ...p, customer: e.target.value }))} required />
+            <input className="ui-input" placeholder="Total" type="number" step="0.01" value={draftOrder.total} onChange={(e) => setDraftOrder((p) => ({ ...p, total: e.target.value }))} required />
+            <input className="ui-input" type="date" value={draftOrder.date} onChange={(e) => setDraftOrder((p) => ({ ...p, date: e.target.value }))} required />
+            <button className="ui-button" type="submit"><Plus size={14} /> Create</button>
           </form>
-          <ul>
-            {tenantData.salesOrders.map((order) => (
-              <li key={order.id}>{order.customer} · ${Number(order.total || 0).toFixed(2)} · {order.date}</li>
-            ))}
-          </ul>
+
+          {tenantData.salesOrders.length === 0 ? <p className="muted">No sales orders yet.</p> : (
+            <ul className="entity-list">
+              {tenantData.salesOrders.map((order) => (
+                <li key={order.id}><strong>{order.customer}</strong><span>${Number(order.total || 0).toFixed(2)} · {order.date}</span></li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
     </main>
   );
 };

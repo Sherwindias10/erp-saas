@@ -35,9 +35,7 @@ const SaaSERPPlatform = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
 
-  // Listen to auth state changes with timeout
   useEffect(() => {
-    // Set a timeout to stop loading after 3 seconds
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
     }, 3000);
@@ -46,6 +44,7 @@ const SaaSERPPlatform = () => {
       clearTimeout(loadingTimeout);
       
       if (user) {
+        console.log('User logged in:', user.email);
         setCurrentUser(user);
         await loadUserData(user);
       } else {
@@ -65,6 +64,8 @@ const SaaSERPPlatform = () => {
 
   const loadUserData = async (user) => {
     try {
+      console.log('Loading user data for:', user.email);
+      
       if (user.email === 'superadmin@yourcompany.com') {
         setUserRole('superadmin');
         setActiveView('superadmin');
@@ -75,13 +76,17 @@ const SaaSERPPlatform = () => {
       const tenantDoc = await getDoc(doc(db, 'tenants', user.uid));
       if (tenantDoc.exists()) {
         const tenantInfo = { id: user.uid, ...tenantDoc.data() };
+        console.log('Loaded tenant:', tenantInfo);
         setCurrentTenant(tenantInfo);
         setUserRole('admin');
         setActiveView('erp');
         await loadTenantData(user.uid);
+      } else {
+        console.error('Tenant document not found for user:', user.uid);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      alert('Error loading data: ' + error.message);
       setLoading(false);
     }
   };
@@ -93,6 +98,7 @@ const SaaSERPPlatform = () => {
         id: doc.id,
         ...doc.data()
       }));
+      console.log('Loaded tenants:', tenantsData);
       setTenants(tenantsData);
     } catch (error) {
       console.error('Error loading tenants:', error);
@@ -101,6 +107,8 @@ const SaaSERPPlatform = () => {
 
   const loadTenantData = async (tenantId) => {
     try {
+      console.log('Loading tenant data for:', tenantId);
+      
       const customersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'customers'));
       const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -113,6 +121,8 @@ const SaaSERPPlatform = () => {
       const ledgerSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'));
       const ledgerEntries = ledgerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      console.log('Loaded data:', { customers, products, salesOrders, ledgerEntries });
+
       setTenantData({
         customers,
         products,
@@ -121,13 +131,16 @@ const SaaSERPPlatform = () => {
       });
     } catch (error) {
       console.error('Error loading tenant data:', error);
+      alert('Error loading data: ' + error.message);
     }
   };
 
   const handleLogin = async (email, password) => {
     try {
       setLoading(true);
+      console.log('Attempting login for:', email);
       await signInWithEmailAndPassword(auth, email, password);
+      console.log('Login successful');
     } catch (error) {
       console.error('Login error:', error);
       alert('Invalid credentials: ' + error.message);
@@ -147,6 +160,8 @@ const SaaSERPPlatform = () => {
   const handleSignup = async (companyData) => {
     try {
       setLoading(true);
+      console.log('Creating account for:', companyData.email);
+      
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         companyData.email, 
@@ -154,8 +169,9 @@ const SaaSERPPlatform = () => {
       );
       
       const userId = userCredential.user.uid;
+      console.log('User created with ID:', userId);
 
-      await setDoc(doc(db, 'tenants', userId), {
+      const tenantDoc = {
         companyName: companyData.companyName,
         email: companyData.email,
         contactName: companyData.contactName,
@@ -165,9 +181,14 @@ const SaaSERPPlatform = () => {
         users: 1,
         createdDate: new Date().toISOString().split('T')[0],
         trialEnds: new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0]
-      });
+      };
+
+      console.log('Creating tenant document:', tenantDoc);
+      await setDoc(doc(db, 'tenants', userId), tenantDoc);
+      console.log('Tenant document created successfully');
 
       setShowModal(false);
+      alert('Account created successfully! You can now add customers and products.');
     } catch (error) {
       console.error('Signup error:', error);
       alert('Signup failed: ' + error.message);
@@ -177,40 +198,70 @@ const SaaSERPPlatform = () => {
 
   const addCustomer = async (customer) => {
     try {
+      if (!currentUser) {
+        alert('Error: No user logged in');
+        return;
+      }
+
+      console.log('Adding customer:', customer);
       const customerId = `customer_${Date.now()}`;
-      await setDoc(doc(db, 'tenants', currentUser.uid, 'customers', customerId), {
+      const customerDoc = {
         ...customer,
         status: 'Active',
         createdDate: new Date().toISOString()
-      });
+      };
+
+      console.log('Saving to path:', `tenants/${currentUser.uid}/customers/${customerId}`);
+      await setDoc(doc(db, 'tenants', currentUser.uid, 'customers', customerId), customerDoc);
+      console.log('Customer added successfully');
+      
       await loadTenantData(currentUser.uid);
       closeModal();
+      alert('Customer added successfully!');
     } catch (error) {
       console.error('Error adding customer:', error);
-      alert('Failed to add customer');
+      alert('Failed to add customer: ' + error.message);
     }
   };
 
   const addProduct = async (product) => {
     try {
+      if (!currentUser) {
+        alert('Error: No user logged in');
+        return;
+      }
+
+      console.log('Adding product:', product);
       const productId = `product_${Date.now()}`;
-      await setDoc(doc(db, 'tenants', currentUser.uid, 'products', productId), {
+      const productDoc = {
         ...product,
         stock: parseInt(product.stock || 0),
         price: parseFloat(product.price || 0),
         cost: parseFloat(product.cost || 0),
         createdDate: new Date().toISOString()
-      });
+      };
+
+      console.log('Saving to path:', `tenants/${currentUser.uid}/products/${productId}`);
+      await setDoc(doc(db, 'tenants', currentUser.uid, 'products', productId), productDoc);
+      console.log('Product added successfully');
+      
       await loadTenantData(currentUser.uid);
       closeModal();
+      alert('Product added successfully!');
     } catch (error) {
       console.error('Error adding product:', error);
-      alert('Failed to add product');
+      alert('Failed to add product: ' + error.message);
     }
   };
 
   const addSalesOrder = async (so, items) => {
     try {
+      if (!currentUser) {
+        alert('Error: No user logged in');
+        return;
+      }
+
+      console.log('Adding sales order:', so, items);
       const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
       const orderId = `order_${Date.now()}`;
       const orderNumber = `SO-${String(tenantData.salesOrders.length + 1).padStart(3, '0')}`;
@@ -225,6 +276,7 @@ const SaaSERPPlatform = () => {
         createdDate: new Date().toISOString()
       });
 
+      console.log('Sales order created, updating inventory...');
       for (const item of items) {
         const product = tenantData.products.find(p => p.name === item.product);
         if (product) {
@@ -249,11 +301,13 @@ const SaaSERPPlatform = () => {
         createdDate: new Date().toISOString()
       });
 
+      console.log('Sales order complete');
       await loadTenantData(currentUser.uid);
       closeModal();
+      alert('Sales order created successfully!');
     } catch (error) {
       console.error('Error adding sales order:', error);
-      alert('Failed to add sales order');
+      alert('Failed to add sales order: ' + error.message);
     }
   };
 
@@ -263,8 +317,10 @@ const SaaSERPPlatform = () => {
         status: newStatus
       });
       await loadAllTenants();
+      alert('Tenant status updated!');
     } catch (error) {
       console.error('Error updating tenant status:', error);
+      alert('Failed to update status: ' + error.message);
     }
   };
 
@@ -276,8 +332,10 @@ const SaaSERPPlatform = () => {
         monthlyFee: planPricing[newPlan]
       });
       await loadAllTenants();
+      alert('Plan upgraded!');
     } catch (error) {
       console.error('Error upgrading plan:', error);
+      alert('Failed to upgrade plan: ' + error.message);
     }
   };
 
@@ -387,17 +445,8 @@ const SaaSERPPlatform = () => {
               <p className="font-medium flex items-center gap-2">
                 <Check size={16} /> Firebase Connected!
               </p>
-              <p className="text-xs mt-1">Real database active - data persists forever</p>
+              <p className="text-xs mt-1">Real database active - all data saves permanently</p>
             </div>
-
-            {isSuperAdmin && (
-              <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800">
-                <p className="font-medium">Super Admin Demo:</p>
-                <p className="mt-1">Email: superadmin@yourcompany.com</p>
-                <p>Password: admin123</p>
-                <p className="mt-2 text-purple-600">⚠️ Create this user in Firebase Authentication first</p>
-              </div>
-            )}
           </div>
         </div>
       </div>

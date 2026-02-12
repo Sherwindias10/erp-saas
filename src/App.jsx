@@ -38,22 +38,24 @@ const SaaSERPPlatform = () => {
   useEffect(() => {
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
-    }, 3000);
+    }, 1200);
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       clearTimeout(loadingTimeout);
       
       if (user) {
         console.log('User logged in:', user.email);
         setCurrentUser(user);
-        await loadUserData(user);
+        loadUserData(user).finally(() => {
+          setLoading(false);
+        });
       } else {
         setCurrentUser(null);
         setCurrentTenant(null);
         setUserRole(null);
         setActiveView('login');
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => {
@@ -80,14 +82,15 @@ const SaaSERPPlatform = () => {
         setCurrentTenant(tenantInfo);
         setUserRole('admin');
         setActiveView('erp');
-        await loadTenantData(user.uid);
+        loadTenantData(user.uid);
       } else {
         console.error('Tenant document not found for user:', user.uid);
+        setActiveView('login');
+        alert('Account setup is incomplete. Please contact support.');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
       alert('Error loading data: ' + error.message);
-      setLoading(false);
     }
   };
 
@@ -109,16 +112,21 @@ const SaaSERPPlatform = () => {
     try {
       console.log('Loading tenant data for:', tenantId);
       
-      const customersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'customers'));
+      const [
+        customersSnapshot,
+        productsSnapshot,
+        ordersSnapshot,
+        ledgerSnapshot
+      ] = await Promise.all([
+        getDocs(collection(db, 'tenants', tenantId, 'customers')),
+        getDocs(collection(db, 'tenants', tenantId, 'products')),
+        getDocs(collection(db, 'tenants', tenantId, 'salesOrders')),
+        getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'))
+      ]);
+
       const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const productsSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'products'));
       const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const ordersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'salesOrders'));
       const salesOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const ledgerSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'));
       const ledgerEntries = ledgerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       console.log('Loaded data:', { customers, products, salesOrders, ledgerEntries });

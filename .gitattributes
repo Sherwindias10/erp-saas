@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+# Keep deployment-critical manifests strictly LF/UTF-8
+package.json text eol=lf
+package-lock.json text eol=lf
+vercel.json text eol=lf

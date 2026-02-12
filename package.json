@@ -22,6 +22,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
+    "preview": "vite preview",
+    "validate:manifests": "node scripts/validate-manifests.mjs"
   },
   "engines": {
     "node": "20.x"

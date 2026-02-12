@@ -1,8 +1,4 @@
-diff --git a/src/App.jsx b/src/App.jsx
-index c12a4a95063b1a0ae5e4c452506a7bd9820bec0c..8580d8e4f1194542a6f76fabded75d73973e924d 100644
---- a/src/App.jsx
-+++ b/src/App.jsx
-@@ -16,131 +16,139 @@ import {
+
    updateDoc
  } from 'firebase/firestore';
  

@@ -23,7 +23,8 @@
     "build": "vite build",
     "preview": "vite preview"
     "preview": "vite preview",
-    "validate:manifests": "node scripts/validate-manifests.mjs"
+    "validate:manifests": "node scripts/validate-manifests.mjs",
+    "deploy:doctor": "node scripts/deploy-doctor.mjs"
   },
   "engines": {
     "node": "20.x"

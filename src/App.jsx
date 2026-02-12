@@ -1,153 +1,87 @@
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from './firebase.jsx';
 
-   updateDoc
- } from 'firebase/firestore';
- 
- const SaaSERPPlatform = () => {
-   const [currentUser, setCurrentUser] = useState(null);
-   const [currentTenant, setCurrentTenant] = useState(null);
-   const [userRole, setUserRole] = useState(null);
-   const [activeView, setActiveView] = useState('login');
-   const [activeModule, setActiveModule] = useState('dashboard');
-   const [loading, setLoading] = useState(true);
-   
-   const [tenants, setTenants] = useState([]);
-   const [tenantData, setTenantData] = useState({
-     customers: [],
-     products: [],
-     salesOrders: [],
-     ledgerEntries: []
-   });
- 
-   const [showModal, setShowModal] = useState(false);
-   const [modalType, setModalType] = useState('');
- 
-   useEffect(() => {
-     const loadingTimeout = setTimeout(() => {
-       setLoading(false);
--    }, 3000);
-+    }, 1200);
- 
--    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-+    const unsubscribe = onAuthStateChanged(auth, (user) => {
-       clearTimeout(loadingTimeout);
-       
-       if (user) {
-         console.log('User logged in:', user.email);
-         setCurrentUser(user);
--        await loadUserData(user);
-+        loadUserData(user).finally(() => {
-+          setLoading(false);
-+        });
-       } else {
-         setCurrentUser(null);
-         setCurrentTenant(null);
-         setUserRole(null);
-         setActiveView('login');
-+        setLoading(false);
-       }
--      setLoading(false);
-     });
- 
-     return () => {
-       clearTimeout(loadingTimeout);
-       unsubscribe();
-     };
-   }, []);
- 
-   const loadUserData = async (user) => {
-     try {
-       console.log('Loading user data for:', user.email);
-       
-       if (user.email === 'superadmin@yourcompany.com') {
-         setUserRole('superadmin');
-         setActiveView('superadmin');
-         await loadAllTenants();
-         return;
-       }
- 
-       const tenantDoc = await getDoc(doc(db, 'tenants', user.uid));
-       if (tenantDoc.exists()) {
-         const tenantInfo = { id: user.uid, ...tenantDoc.data() };
-         console.log('Loaded tenant:', tenantInfo);
-         setCurrentTenant(tenantInfo);
-         setUserRole('admin');
-         setActiveView('erp');
--        await loadTenantData(user.uid);
-+        loadTenantData(user.uid);
-       } else {
-         console.error('Tenant document not found for user:', user.uid);
-+        setActiveView('login');
-+        alert('Account setup is incomplete. Please contact support.');
-       }
-     } catch (error) {
-       console.error('Error loading user data:', error);
-       alert('Error loading data: ' + error.message);
--      setLoading(false);
-     }
-   };
- 
-   const loadAllTenants = async () => {
-     try {
-       const tenantsSnapshot = await getDocs(collection(db, 'tenants'));
-       const tenantsData = tenantsSnapshot.docs.map(doc => ({
-         id: doc.id,
-         ...doc.data()
-       }));
-       console.log('Loaded tenants:', tenantsData);
-       setTenants(tenantsData);
-     } catch (error) {
-       console.error('Error loading tenants:', error);
-     }
-   };
- 
-   const loadTenantData = async (tenantId) => {
-     try {
-       console.log('Loading tenant data for:', tenantId);
-       
--      const customersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'customers'));
--      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-+      const [
-+        customersSnapshot,
-+        productsSnapshot,
-+        ordersSnapshot,
-+        ledgerSnapshot
-+      ] = await Promise.all([
-+        getDocs(collection(db, 'tenants', tenantId, 'customers')),
-+        getDocs(collection(db, 'tenants', tenantId, 'products')),
-+        getDocs(collection(db, 'tenants', tenantId, 'salesOrders')),
-+        getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'))
-+      ]);
- 
--      const productsSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'products'));
-+      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-       const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
--
--      const ordersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'salesOrders'));
-       const salesOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
--
--      const ledgerSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'));
-       const ledgerEntries = ledgerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
- 
-       console.log('Loaded data:', { customers, products, salesOrders, ledgerEntries });
- 
-       setTenantData({
-         customers,
-         products,
-         salesOrders,
-         ledgerEntries
-       });
-     } catch (error) {
-       console.error('Error loading tenant data:', error);
-       alert('Error loading data: ' + error.message);
-     }
-   };
- 
-   const handleLogin = async (email, password) => {
-     try {
-       setLoading(true);
-       console.log('Attempting login for:', email);
-       await signInWithEmailAndPassword(auth, email, password);
-       console.log('Login successful');
-     } catch (error) {
-       console.error('Login error:', error);
-       alert('Invalid credentials: ' + error.message);
+const SaaSERPPlatform = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setError('');
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setPassword('');
+    } catch (loginError) {
+      setError(loginError.message || 'Unable to sign in.');
+    }
+  };
+
+  const handleLogout = async () => {
+    setError('');
+
+    try {
+      await signOut(auth);
+    } catch (logoutError) {
+      setError(logoutError.message || 'Unable to sign out.');
+    }
+  };
+
+  if (loading) {
+    return <div style={{ padding: 24 }}>Loading ERP platform...</div>;
+  }
+
+  if (!currentUser) {
+    return (
+      <main style={{ maxWidth: 420, margin: '48px auto', fontFamily: 'sans-serif' }}>
+        <h1>SaaS ERP Platform</h1>
+        <p>Sign in to continue.</p>
+        <form onSubmit={handleLogin} style={{ display: 'grid', gap: 12 }}>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Email"
+            required
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password"
+            required
+          />
+          <button type="submit">Sign in</button>
+        </form>
+        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ maxWidth: 720, margin: '48px auto', fontFamily: 'sans-serif' }}>
+      <h1>SaaS ERP Platform</h1>
+      <p>Welcome, {currentUser.email}</p>
+      <p>Your application is connected and ready for module integration.</p>
+      <button onClick={handleLogout} type="button">
+        Sign out
+      </button>
+      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+    </main>
+  );
+};
+
+export default SaaSERPPlatform;

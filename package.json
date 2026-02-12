@@ -18,4 +18,9 @@
     "build": "vite build",
     "preview": "vite preview"
   }
+  },
+  "engines": {
+    "node": ">=18 <23"
+  },
+  "packageManager": "npm@10"
 }

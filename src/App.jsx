@@ -1,4 +1,4 @@
-updateDoc
+ updateDoc
 } from 'firebase/firestore';
 
 const SaaSERPPlatform = () => {

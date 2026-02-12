@@ -13,10 +13,7 @@ import {
   setDoc, 
   getDoc, 
   getDocs, 
-  updateDoc,
-  query,
-  where,
-  onSnapshot
+  updateDoc
 } from 'firebase/firestore';
 
 const SaaSERPPlatform = () => {
@@ -38,9 +35,16 @@ const SaaSERPPlatform = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
 
-  // Listen to auth state changes
+  // Listen to auth state changes with timeout
   useEffect(() => {
+    // Set a timeout to stop loading after 3 seconds
+    const loadingTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(loadingTimeout);
+      
       if (user) {
         setCurrentUser(user);
         await loadUserData(user);
@@ -52,13 +56,15 @@ const SaaSERPPlatform = () => {
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => {
+      clearTimeout(loadingTimeout);
+      unsubscribe();
+    };
   }, []);
 
-  // Load user data from Firestore
   const loadUserData = async (user) => {
     try {
-      // Check if super admin
       if (user.email === 'superadmin@yourcompany.com') {
         setUserRole('superadmin');
         setActiveView('superadmin');
@@ -66,7 +72,6 @@ const SaaSERPPlatform = () => {
         return;
       }
 
-      // Load tenant data
       const tenantDoc = await getDoc(doc(db, 'tenants', user.uid));
       if (tenantDoc.exists()) {
         const tenantInfo = { id: user.uid, ...tenantDoc.data() };
@@ -77,10 +82,10 @@ const SaaSERPPlatform = () => {
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      setLoading(false);
     }
   };
 
-  // Load all tenants (for super admin)
   const loadAllTenants = async () => {
     try {
       const tenantsSnapshot = await getDocs(collection(db, 'tenants'));
@@ -94,22 +99,17 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Load tenant-specific data
   const loadTenantData = async (tenantId) => {
     try {
-      // Load customers
       const customersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'customers'));
       const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Load products
       const productsSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'products'));
       const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Load sales orders
       const ordersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'salesOrders'));
       const salesOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Load ledger entries
       const ledgerSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'));
       const ledgerEntries = ledgerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -124,12 +124,10 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Handle login
-  const handleLogin = async (email, password, isSuperAdmin) => {
+  const handleLogin = async (email, password) => {
     try {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
-      // Auth state listener will handle the rest
     } catch (error) {
       console.error('Login error:', error);
       alert('Invalid credentials: ' + error.message);
@@ -137,7 +135,6 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -147,11 +144,9 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Handle signup
   const handleSignup = async (companyData) => {
     try {
       setLoading(true);
-      // Create user account
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         companyData.email, 
@@ -160,7 +155,6 @@ const SaaSERPPlatform = () => {
       
       const userId = userCredential.user.uid;
 
-      // Create tenant document
       await setDoc(doc(db, 'tenants', userId), {
         companyName: companyData.companyName,
         email: companyData.email,
@@ -174,7 +168,6 @@ const SaaSERPPlatform = () => {
       });
 
       setShowModal(false);
-      // Auth listener will handle loading the tenant data
     } catch (error) {
       console.error('Signup error:', error);
       alert('Signup failed: ' + error.message);
@@ -182,7 +175,6 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Add customer to Firestore
   const addCustomer = async (customer) => {
     try {
       const customerId = `customer_${Date.now()}`;
@@ -199,7 +191,6 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Add product to Firestore
   const addProduct = async (product) => {
     try {
       const productId = `product_${Date.now()}`;
@@ -218,14 +209,12 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Add sales order to Firestore
   const addSalesOrder = async (so, items) => {
     try {
       const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
       const orderId = `order_${Date.now()}`;
       const orderNumber = `SO-${String(tenantData.salesOrders.length + 1).padStart(3, '0')}`;
 
-      // Create sales order
       await setDoc(doc(db, 'tenants', currentUser.uid, 'salesOrders', orderId), {
         soNumber: orderNumber,
         customer: so.customer,
@@ -236,7 +225,6 @@ const SaaSERPPlatform = () => {
         createdDate: new Date().toISOString()
       });
 
-      // Update inventory
       for (const item of items) {
         const product = tenantData.products.find(p => p.name === item.product);
         if (product) {
@@ -246,7 +234,6 @@ const SaaSERPPlatform = () => {
         }
       }
 
-      // Add ledger entry
       const ledgerId = `ledger_${Date.now()}`;
       const lastBalance = tenantData.ledgerEntries.length > 0 
         ? tenantData.ledgerEntries[tenantData.ledgerEntries.length - 1].balance 
@@ -270,7 +257,6 @@ const SaaSERPPlatform = () => {
     }
   };
 
-  // Super admin functions
   const updateTenantStatus = async (tenantId, newStatus) => {
     try {
       await updateDoc(doc(db, 'tenants', tenantId), {
@@ -315,7 +301,10 @@ const SaaSERPPlatform = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center">
-        <div className="text-white text-2xl">Loading...</div>
+        <div className="text-center">
+          <div className="text-white text-2xl mb-4">Loading...</div>
+          <div className="text-white text-sm opacity-75">Initializing your ERP system</div>
+        </div>
       </div>
     );
   }
@@ -340,7 +329,7 @@ const SaaSERPPlatform = () => {
             <div className="flex gap-2 mb-6">
               <button
                 onClick={() => setIsSuperAdmin(false)}
-                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 px-4 rounded-lg font-medium ${
                   !isSuperAdmin ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -348,7 +337,7 @@ const SaaSERPPlatform = () => {
               </button>
               <button
                 onClick={() => setIsSuperAdmin(true)}
-                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 px-4 rounded-lg font-medium ${
                   isSuperAdmin ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -361,25 +350,21 @@ const SaaSERPPlatform = () => {
               placeholder="Email"
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="password"
               placeholder="Password"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleLogin(loginEmail, loginPassword, isSuperAdmin);
-                }
-              }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              onKeyPress={(e) => e.key === 'Enter' && handleLogin(loginEmail, loginPassword)}
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
 
             <button
-              onClick={() => handleLogin(loginEmail, loginPassword, isSuperAdmin)}
+              onClick={() => handleLogin(loginEmail, loginPassword)}
               disabled={loading}
-              className={`w-full py-3 rounded-lg font-medium text-white transition-colors ${
+              className={`w-full py-3 rounded-lg font-medium text-white ${
                 isSuperAdmin ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
               } disabled:opacity-50`}
             >
@@ -398,10 +383,21 @@ const SaaSERPPlatform = () => {
               </>
             )}
 
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              <p className="font-medium">🔥 Firebase Connected!</p>
-              <p className="text-xs mt-1">Data now persists in real database</p>
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+              <p className="font-medium flex items-center gap-2">
+                <Check size={16} /> Firebase Connected!
+              </p>
+              <p className="text-xs mt-1">Real database active - data persists forever</p>
             </div>
+
+            {isSuperAdmin && (
+              <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800">
+                <p className="font-medium">Super Admin Demo:</p>
+                <p className="mt-1">Email: superadmin@yourcompany.com</p>
+                <p>Password: admin123</p>
+                <p className="mt-2 text-purple-600">⚠️ Create this user in Firebase Authentication first</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -417,20 +413,15 @@ const SaaSERPPlatform = () => {
               <Shield size={28} />
               Super Admin Dashboard
             </h1>
-            <p className="text-purple-100 text-sm">Platform Management</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg"
-          >
-            <LogOut size={20} />
-            Logout
+          <button onClick={handleLogout} className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+            <LogOut size={20} /> Logout
           </button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-600">
             <p className="text-sm text-gray-600 font-medium">Total Tenants</p>
             <p className="text-3xl font-bold text-gray-800">{superAdminStats.totalTenants}</p>
@@ -470,41 +461,42 @@ const SaaSERPPlatform = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {tenants.map(tenant => (
-                  <tr key={tenant.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium">{tenant.companyName}</td>
-                    <td className="px-6 py-4 text-sm">{tenant.email}</td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={tenant.plan}
-                        onChange={(e) => upgradeTenantPlan(tenant.id, e.target.value)}
-                        className="text-sm border rounded px-2 py-1"
-                      >
-                        <option>Starter</option>
-                        <option>Professional</option>
-                        <option>Enterprise</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                        tenant.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {tenant.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">${tenant.status === 'Active' ? tenant.monthlyFee : 0}</td>
-                    <td className="px-6 py-4">
-                      {tenant.status === 'Trial' && (
-                        <button
-                          onClick={() => updateTenantStatus(tenant.id, 'Active')}
-                          className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded"
-                        >
-                          Activate
-                        </button>
-                      )}
+                {tenants.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      No customers yet. Users will appear here when they sign up!
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  tenants.map(tenant => (
+                    <tr key={tenant.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium">{tenant.companyName}</td>
+                      <td className="px-6 py-4 text-sm">{tenant.email}</td>
+                      <td className="px-6 py-4">
+                        <select value={tenant.plan} onChange={(e) => upgradeTenantPlan(tenant.id, e.target.value)} className="text-sm border rounded px-2 py-1">
+                          <option>Starter</option>
+                          <option>Professional</option>
+                          <option>Enterprise</option>
+                        </select>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                          tenant.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {tenant.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">${tenant.status === 'Active' ? tenant.monthlyFee : 0}</td>
+                      <td className="px-6 py-4">
+                        {tenant.status === 'Trial' && (
+                          <button onClick={() => updateTenantStatus(tenant.id, 'Active')} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded">
+                            Activate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -610,7 +602,7 @@ const SaaSERPPlatform = () => {
                       </thead>
                       <tbody className="divide-y">
                         {tenantData.customers.length === 0 ? (
-                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No customers yet</td></tr>
+                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No customers yet. Click "Add Customer" to get started!</td></tr>
                         ) : (
                           tenantData.customers.map(c => (
                             <tr key={c.id} className="hover:bg-gray-50">
@@ -647,7 +639,7 @@ const SaaSERPPlatform = () => {
                       </thead>
                       <tbody className="divide-y">
                         {tenantData.products.length === 0 ? (
-                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No products yet</td></tr>
+                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No products yet. Click "Add Product" to get started!</td></tr>
                         ) : (
                           tenantData.products.map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
@@ -684,7 +676,7 @@ const SaaSERPPlatform = () => {
                       </thead>
                       <tbody className="divide-y">
                         {tenantData.salesOrders.length === 0 ? (
-                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No orders yet</td></tr>
+                          <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">No orders yet. Click "Create Order" to get started!</td></tr>
                         ) : (
                           tenantData.salesOrders.map(so => (
                             <tr key={so.id} className="hover:bg-gray-50">
@@ -774,7 +766,7 @@ const SaaSERPPlatform = () => {
                 <input name="companyName" placeholder="Company Name" required className="w-full px-4 py-2 border rounded-lg" />
                 <input name="contactName" placeholder="Your Name" required className="w-full px-4 py-2 border rounded-lg" />
                 <input name="email" type="email" placeholder="Email" required className="w-full px-4 py-2 border rounded-lg" />
-                <input name="password" type="password" placeholder="Password" required className="w-full px-4 py-2 border rounded-lg" />
+                <input name="password" type="password" placeholder="Password (min 6 characters)" minLength="6" required className="w-full px-4 py-2 border rounded-lg" />
               </>
             )}
 

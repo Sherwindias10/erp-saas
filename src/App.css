@@ -161,6 +161,11 @@ h1, h2, h3, p {
   filter: brightness(0.97);
 }
 
+.ui-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .entity-list {
   list-style: none;
   padding: 0;

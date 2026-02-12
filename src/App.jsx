@@ -32,6 +32,7 @@ const SaaSERPPlatform = () => {
   const [userRole, setUserRole] = useState('tenant');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState('');
   const [view, setView] = useState('dashboard');
   const [showSignup, setShowSignup] = useState(false);
   const [tenants, setTenants] = useState([]);
@@ -159,25 +160,40 @@ const SaaSERPPlatform = () => {
   };
 
   const insertTenantDoc = async (collectionName, payload) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      throw new Error('You must be signed in to add records.');
+    }
 
     const id = `${collectionName}_${Date.now()}`;
-    await setDoc(doc(db, 'tenants', currentUser.uid, collectionName, id), {
+    const savedPayload = {
       ...payload,
       createdAt: new Date().toISOString(),
-    });
+    };
+
+    await setDoc(doc(db, 'tenants', currentUser.uid, collectionName, id), savedPayload);
+    return { id, ...savedPayload };
   };
 
   const addCustomer = async (event) => {
     event.preventDefault();
+    setError('');
+    setActionLoading('customer');
 
-    await insertTenantDoc('customers', draftCustomer);
-    setTenantData((prev) => ({ ...prev, customers: [...prev.customers, { id: `customers_${Date.now()}`, ...draftCustomer }] }));
-    setDraftCustomer({ name: '', email: '', phone: '' });
+    try {
+      const createdCustomer = await insertTenantDoc('customers', draftCustomer);
+      setTenantData((prev) => ({ ...prev, customers: [...prev.customers, createdCustomer] }));
+      setDraftCustomer({ name: '', email: '', phone: '' });
+    } catch (addError) {
+      setError(addError.message || 'Unable to add customer. Check Firestore permissions.');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const addProduct = async (event) => {
     event.preventDefault();
+    setError('');
+    setActionLoading('product');
 
     const payload = {
       ...draftProduct,
@@ -185,13 +201,21 @@ const SaaSERPPlatform = () => {
       price: Number(draftProduct.price || 0),
     };
 
-    await insertTenantDoc('products', payload);
-    setTenantData((prev) => ({ ...prev, products: [...prev.products, { id: `products_${Date.now()}`, ...payload }] }));
-    setDraftProduct({ name: '', sku: '', stock: '', price: '' });
+    try {
+      const createdProduct = await insertTenantDoc('products', payload);
+      setTenantData((prev) => ({ ...prev, products: [...prev.products, createdProduct] }));
+      setDraftProduct({ name: '', sku: '', stock: '', price: '' });
+    } catch (addError) {
+      setError(addError.message || 'Unable to add product. Check Firestore permissions.');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const addSalesOrder = async (event) => {
     event.preventDefault();
+    setError('');
+    setActionLoading('order');
 
     const payload = {
       customer: draftOrder.customer,
@@ -200,9 +224,15 @@ const SaaSERPPlatform = () => {
       status: 'Draft',
     };
 
-    await insertTenantDoc('salesOrders', payload);
-    setTenantData((prev) => ({ ...prev, salesOrders: [...prev.salesOrders, { id: `salesOrders_${Date.now()}`, ...payload }] }));
-    setDraftOrder({ customer: '', total: '', date: '' });
+    try {
+      const createdOrder = await insertTenantDoc('salesOrders', payload);
+      setTenantData((prev) => ({ ...prev, salesOrders: [...prev.salesOrders, createdOrder] }));
+      setDraftOrder({ customer: '', total: '', date: '' });
+    } catch (addError) {
+      setError(addError.message || 'Unable to add sales order. Check Firestore permissions.');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   if (loading) {
@@ -329,7 +359,7 @@ const SaaSERPPlatform = () => {
             <input className="ui-input" placeholder="Name" value={draftCustomer.name} onChange={(e) => setDraftCustomer((p) => ({ ...p, name: e.target.value }))} required />
             <input className="ui-input" placeholder="Email" type="email" value={draftCustomer.email} onChange={(e) => setDraftCustomer((p) => ({ ...p, email: e.target.value }))} required />
             <input className="ui-input" placeholder="Phone" value={draftCustomer.phone} onChange={(e) => setDraftCustomer((p) => ({ ...p, phone: e.target.value }))} required />
-            <button className="ui-button" type="submit"><Plus size={14} /> Add</button>
+            <button className="ui-button" type="submit" disabled={actionLoading === 'customer'}><Plus size={14} /> {actionLoading === 'customer' ? 'Adding...' : 'Add'}</button>
           </form>
 
           {tenantData.customers.length === 0 ? <p className="muted">No customers yet.</p> : (
@@ -350,7 +380,7 @@ const SaaSERPPlatform = () => {
             <input className="ui-input" placeholder="SKU" value={draftProduct.sku} onChange={(e) => setDraftProduct((p) => ({ ...p, sku: e.target.value }))} required />
             <input className="ui-input" placeholder="Stock" type="number" value={draftProduct.stock} onChange={(e) => setDraftProduct((p) => ({ ...p, stock: e.target.value }))} required />
             <input className="ui-input" placeholder="Price" type="number" step="0.01" value={draftProduct.price} onChange={(e) => setDraftProduct((p) => ({ ...p, price: e.target.value }))} required />
-            <button className="ui-button" type="submit"><Plus size={14} /> Add</button>
+            <button className="ui-button" type="submit" disabled={actionLoading === 'product'}><Plus size={14} /> {actionLoading === 'product' ? 'Adding...' : 'Add'}</button>
           </form>
 
           {tenantData.products.length === 0 ? <p className="muted">No products yet.</p> : (
@@ -370,7 +400,7 @@ const SaaSERPPlatform = () => {
             <input className="ui-input" placeholder="Customer" value={draftOrder.customer} onChange={(e) => setDraftOrder((p) => ({ ...p, customer: e.target.value }))} required />
             <input className="ui-input" placeholder="Total" type="number" step="0.01" value={draftOrder.total} onChange={(e) => setDraftOrder((p) => ({ ...p, total: e.target.value }))} required />
             <input className="ui-input" type="date" value={draftOrder.date} onChange={(e) => setDraftOrder((p) => ({ ...p, date: e.target.value }))} required />
-            <button className="ui-button" type="submit"><Plus size={14} /> Create</button>
+            <button className="ui-button" type="submit" disabled={actionLoading === 'order'}><Plus size={14} /> {actionLoading === 'order' ? 'Creating...' : 'Create'}</button>
           </form>
 
           {tenantData.salesOrders.length === 0 ? <p className="muted">No sales orders yet.</p> : (

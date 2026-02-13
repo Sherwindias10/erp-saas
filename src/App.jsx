@@ -1,153 +1,162 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Heart, ImagePlus, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-   updateDoc
- } from 'firebase/firestore';
- 
- const SaaSERPPlatform = () => {
-   const [currentUser, setCurrentUser] = useState(null);
-   const [currentTenant, setCurrentTenant] = useState(null);
-   const [userRole, setUserRole] = useState(null);
-   const [activeView, setActiveView] = useState('login');
-   const [activeModule, setActiveModule] = useState('dashboard');
-   const [loading, setLoading] = useState(true);
-   
-   const [tenants, setTenants] = useState([]);
-   const [tenantData, setTenantData] = useState({
-     customers: [],
-     products: [],
-     salesOrders: [],
-     ledgerEntries: []
-   });
- 
-   const [showModal, setShowModal] = useState(false);
-   const [modalType, setModalType] = useState('');
- 
-   useEffect(() => {
-     const loadingTimeout = setTimeout(() => {
-       setLoading(false);
--    }, 3000);
-+    }, 1200);
- 
--    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-+    const unsubscribe = onAuthStateChanged(auth, (user) => {
-       clearTimeout(loadingTimeout);
-       
-       if (user) {
-         console.log('User logged in:', user.email);
-         setCurrentUser(user);
--        await loadUserData(user);
-+        loadUserData(user).finally(() => {
-+          setLoading(false);
-+        });
-       } else {
-         setCurrentUser(null);
-         setCurrentTenant(null);
-         setUserRole(null);
-         setActiveView('login');
-+        setLoading(false);
-       }
--      setLoading(false);
-     });
- 
-     return () => {
-       clearTimeout(loadingTimeout);
-       unsubscribe();
-     };
-   }, []);
- 
-   const loadUserData = async (user) => {
-     try {
-       console.log('Loading user data for:', user.email);
-       
-       if (user.email === 'superadmin@yourcompany.com') {
-         setUserRole('superadmin');
-         setActiveView('superadmin');
-         await loadAllTenants();
-         return;
-       }
- 
-       const tenantDoc = await getDoc(doc(db, 'tenants', user.uid));
-       if (tenantDoc.exists()) {
-         const tenantInfo = { id: user.uid, ...tenantDoc.data() };
-         console.log('Loaded tenant:', tenantInfo);
-         setCurrentTenant(tenantInfo);
-         setUserRole('admin');
-         setActiveView('erp');
--        await loadTenantData(user.uid);
-+        loadTenantData(user.uid);
-       } else {
-         console.error('Tenant document not found for user:', user.uid);
-+        setActiveView('login');
-+        alert('Account setup is incomplete. Please contact support.');
-       }
-     } catch (error) {
-       console.error('Error loading user data:', error);
-       alert('Error loading data: ' + error.message);
--      setLoading(false);
-     }
-   };
- 
-   const loadAllTenants = async () => {
-     try {
-       const tenantsSnapshot = await getDocs(collection(db, 'tenants'));
-       const tenantsData = tenantsSnapshot.docs.map(doc => ({
-         id: doc.id,
-         ...doc.data()
-       }));
-       console.log('Loaded tenants:', tenantsData);
-       setTenants(tenantsData);
-     } catch (error) {
-       console.error('Error loading tenants:', error);
-     }
-   };
- 
-   const loadTenantData = async (tenantId) => {
-     try {
-       console.log('Loading tenant data for:', tenantId);
-       
--      const customersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'customers'));
--      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-+      const [
-+        customersSnapshot,
-+        productsSnapshot,
-+        ordersSnapshot,
-+        ledgerSnapshot
-+      ] = await Promise.all([
-+        getDocs(collection(db, 'tenants', tenantId, 'customers')),
-+        getDocs(collection(db, 'tenants', tenantId, 'products')),
-+        getDocs(collection(db, 'tenants', tenantId, 'salesOrders')),
-+        getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'))
-+      ]);
- 
--      const productsSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'products'));
-+      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-       const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
--
--      const ordersSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'salesOrders'));
-       const salesOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
--
--      const ledgerSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'ledgerEntries'));
-       const ledgerEntries = ledgerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
- 
-       console.log('Loaded data:', { customers, products, salesOrders, ledgerEntries });
- 
-       setTenantData({
-         customers,
-         products,
-         salesOrders,
-         ledgerEntries
-       });
-     } catch (error) {
-       console.error('Error loading tenant data:', error);
-       alert('Error loading data: ' + error.message);
-     }
-   };
- 
-   const handleLogin = async (email, password) => {
-     try {
-       setLoading(true);
-       console.log('Attempting login for:', email);
-       await signInWithEmailAndPassword(auth, email, password);
-       console.log('Login successful');
-     } catch (error) {
-       console.error('Login error:', error);
-       alert('Invalid credentials: ' + error.message);
+const initialImages = [
+  {
+    id: crypto.randomUUID(),
+    src: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    title: 'Dashboard Analytics',
+    favorite: false
+  },
+  {
+    id: crypto.randomUUID(),
+    src: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80',
+    title: 'Team Collaboration',
+    favorite: true
+  },
+  {
+    id: crypto.randomUUID(),
+    src: 'https://images.unsplash.com/photo-1454165205744-3b78555e5572?auto=format&fit=crop&w=1200&q=80',
+    title: 'Operations Planning',
+    favorite: false
+  }
+];
+
+export default function SaaSERPPlatform() {
+  const [images, setImages] = useState(initialImages);
+  const [query, setQuery] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const filteredImages = useMemo(() => {
+    return images.filter((image) => {
+      const queryMatch = image.title.toLowerCase().includes(query.toLowerCase());
+      const favoriteMatch = favoritesOnly ? image.favorite : true;
+      return queryMatch && favoriteMatch;
+    });
+  }, [favoritesOnly, images, query]);
+
+  const selectedIndex = filteredImages.findIndex((image) => image.id === selectedId);
+  const selectedImage = selectedIndex >= 0 ? filteredImages[selectedIndex] : null;
+
+  useEffect(() => {
+    const handleKeyboardNavigation = (event) => {
+      if (!selectedImage) return;
+      if (event.key === 'Escape') setSelectedId(null);
+      if (event.key === 'ArrowRight') {
+        const next = filteredImages[(selectedIndex + 1) % filteredImages.length];
+        setSelectedId(next.id);
+      }
+      if (event.key === 'ArrowLeft') {
+        const prev = filteredImages[(selectedIndex - 1 + filteredImages.length) % filteredImages.length];
+        setSelectedId(prev.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyboardNavigation);
+    return () => window.removeEventListener('keydown', handleKeyboardNavigation);
+  }, [filteredImages, selectedImage, selectedIndex]);
+
+  const toggleFavorite = (id) => {
+    setImages((prev) => prev.map((img) => (img.id === id ? { ...img, favorite: !img.favorite } : img)));
+  };
+
+  const onUpload = (event) => {
+    const files = Array.from(event.target.files || []);
+    const uploaded = files
+      .filter((file) => file.type.startsWith('image/'))
+      .map((file) => ({
+        id: crypto.randomUUID(),
+        src: URL.createObjectURL(file),
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        favorite: false
+      }));
+
+    if (uploaded.length) {
+      setImages((prev) => [...uploaded, ...prev]);
+    }
+    event.target.value = '';
+  };
+
+  const moveSelection = (direction) => {
+    if (!selectedImage) return;
+    const target = direction === 'next'
+      ? filteredImages[(selectedIndex + 1) % filteredImages.length]
+      : filteredImages[(selectedIndex - 1 + filteredImages.length) % filteredImages.length];
+    setSelectedId(target.id);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Interactive Image Workspace</h1>
+            <p className="text-slate-600">Search, favorite, preview, and upload images in a user-friendly gallery.</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
+            <ImagePlus size={18} /> Upload Images
+            <input type="file" multiple accept="image/*" className="hidden" onChange={onUpload} />
+          </label>
+        </header>
+
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 shadow-sm">
+            <Search size={18} className="text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search images..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-56 outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFavoritesOnly((prev) => !prev)}
+            className={`rounded-lg border px-4 py-2 ${favoritesOnly ? 'border-rose-500 bg-rose-50 text-rose-700' : 'bg-white'}`}
+          >
+            Favorites only
+          </button>
+          <span className="text-sm text-slate-600">{filteredImages.length} image(s)</span>
+        </div>
+
+        <main className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredImages.map((image) => (
+            <article key={image.id} className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+              <button type="button" onClick={() => setSelectedId(image.id)} className="block w-full text-left">
+                <img src={image.src} alt={image.title} className="h-56 w-full object-cover" />
+              </button>
+              <div className="flex items-center justify-between p-3">
+                <p className="truncate font-medium">{image.title}</p>
+                <button
+                  type="button"
+                  onClick={() => toggleFavorite(image.id)}
+                  className={`rounded-md p-2 ${image.favorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'}`}
+                  aria-label="Toggle favorite"
+                >
+                  <Heart fill={image.favorite ? 'currentColor' : 'none'} size={18} />
+                </button>
+              </div>
+            </article>
+          ))}
+        </main>
+      </div>
+
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <button className="absolute right-4 top-4 rounded-full bg-white p-2" onClick={() => setSelectedId(null)}>
+            <X size={20} />
+          </button>
+          <button className="absolute left-4 rounded-full bg-white p-2" onClick={() => moveSelection('prev')}>
+            <ChevronLeft size={20} />
+          </button>
+          <img src={selectedImage.src} alt={selectedImage.title} className="max-h-[80vh] max-w-[85vw] rounded-lg object-contain" />
+          <button className="absolute right-4 rounded-full bg-white p-2" onClick={() => moveSelection('next')}>
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
